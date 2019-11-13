@@ -1,4 +1,5 @@
 <?php
+
 /**
  * #%L
  * hotel-api-sdk
@@ -56,6 +57,7 @@ use Zend\Uri\UriFactory;
  * @method CheckRateRS CheckRate(CheckRate $rateData) Check different room rates for booking
  * @method BookingConfirmRS BookingConfirm(Booking $bookingData) Method allows confirmation of the rate keys selected.  There is an option of confirming more than one rate key for the same hotel/room/board.
  * @method BookingCancellationRS BookingCancellation( $bookingId ) Method can cancel confirmed booking
+ * @method BookingDetailsRS BookingDetails( $bookingId ) Method To get All informations about booking
  * @method BookingListRS BookingList( BookingList $bookData ) To get a list of bookings
  */
 class HotelApiClient
@@ -64,7 +66,7 @@ class HotelApiClient
      * @var ApiUri Well formatted URI of service
      */
     private $apiUri;
-    
+
     /**
      * @var ApiUri Well formatted URI of service for payments
      */
@@ -105,26 +107,26 @@ class HotelApiClient
      * @param string $adapter Customize adapter for http request
      * @param string $secureUrl Customize Base URL of hotel-api secure service.
      */
-    public function __construct($url, $apiKey, $sharedSecret, ApiVersion $version, $timeout=30, $adapter=null, $secureUrl=null)
+    public function __construct($url, $apiKey, $sharedSecret, ApiVersion $version, $timeout = 30, $adapter = null, $secureUrl = null)
     {
         $this->lastRequest = null;
         $this->apiKey = trim($apiKey);
         $this->sharedSecret = trim($sharedSecret);
         $this->httpClient = new Client();
-        if($adapter!=null) {
+        if ($adapter != null) {
             $this->httpClient->setOptions([
-            		"adapter" => $adapter,
-            		"timeout" => $timeout
+                "adapter" => $adapter,
+                "timeout" => $timeout
             ]);
-        }else{
+        } else {
             $this->httpClient->setOptions([
-            		"timeout" => $timeout
+                "timeout" => $timeout
             ]);
         }
-        UriFactory::registerScheme("https","hotelbeds\\hotel_api_sdk\\types\\ApiUri");
+        UriFactory::registerScheme("https", "hotelbeds\\hotel_api_sdk\\types\\ApiUri");
         $this->apiUri = UriFactory::factory($url);
         $this->apiUri->prepare($version);
-        $this->apiPaymentUri = UriFactory::factory($secureUrl?$secureUrl:$url);
+        $this->apiPaymentUri = UriFactory::factory($secureUrl ? $secureUrl : $url);
         $this->apiPaymentUri->prepare($version);
     }
 
@@ -135,22 +137,22 @@ class HotelApiClient
      * @throws HotelSDKException Specific exception of call
      */
 
-    public function __call($sdkMethod, array $args=null)
+    public function __call($sdkMethod, array $args = null)
     {
-        $sdkClassRQ = "hotelbeds\\hotel_api_sdk\\messages\\".$sdkMethod."RQ";
-        $sdkClassRS = "hotelbeds\\hotel_api_sdk\\messages\\".$sdkMethod."RS";
+        $sdkClassRQ = "hotelbeds\\hotel_api_sdk\\messages\\" . $sdkMethod . "RQ";
+        $sdkClassRS = "hotelbeds\\hotel_api_sdk\\messages\\" . $sdkMethod . "RS";
 
-        if (!class_exists($sdkClassRQ) && !class_exists($sdkClassRS)){
+        if (!class_exists($sdkClassRQ) && !class_exists($sdkClassRS)) {
             throw new HotelSDKException("$sdkClassRQ or $sdkClassRS not implemented in SDK");
         }
-        if($sdkClassRQ == "hotelbeds\\hotel_api_sdk\\messages\\BookingConfirmRQ"){
-        	$req = new $sdkClassRQ($this->apiUri, $this->apiPaymentUri, $args[0]);
-        }else{
-	        if ($args !== null && count($args) > 0){
-	            $req = new $sdkClassRQ($this->apiUri, $args[0]);
-	        } else {
-	        	$req = new $sdkClassRQ($this->apiUri);
-	        }
+        if ($sdkClassRQ == "hotelbeds\\hotel_api_sdk\\messages\\BookingConfirmRQ") {
+            $req = new $sdkClassRQ($this->apiUri, $this->apiPaymentUri, $args[0]);
+        } else {
+            if ($args !== null && count($args) > 0) {
+                $req = new $sdkClassRQ($this->apiUri, $args[0]);
+            } else {
+                $req = new $sdkClassRQ($this->apiUri);
+            }
         }
         return new $sdkClassRS($this->callApi($req));
     }
@@ -165,7 +167,7 @@ class HotelApiClient
     private function callApi(ApiRequest $request)
     {
         try {
-            $signature = hash("sha256", $this->apiKey.$this->sharedSecret.time());
+            $signature = hash("sha256", $this->apiKey . $this->sharedSecret . time());
             $this->lastRequest = $request->prepare($this->apiKey, $signature);
             $response = $this->httpClient->send($this->lastRequest);
             $this->lastResponse = $response;
@@ -174,20 +176,22 @@ class HotelApiClient
         }
 
         if ($response->getStatusCode() !== 200) {
-           $auditData = null;$message=''; $errorResponse = null;
-           if ($response->getBody() !== null) {
-               try {
-                   $errorResponse = \Zend\Json\Json::decode($response->getBody(), \Zend\Json\Json::TYPE_ARRAY);
-                   $auditData = new AuditData($errorResponse["auditData"]);
-                   $message =$errorResponse["error"]["code"].' '.$errorResponse["error"]["message"];
-               } catch (\Exception $e) {
-                   throw new HotelSDKException($response->getReasonPhrase().': '.$response->getBody());
-               }
-           }
-            throw new HotelSDKException($response->getReasonPhrase().': '.$message, $auditData);
+            $auditData = null;
+            $message = '';
+            $errorResponse = null;
+            if ($response->getBody() !== null) {
+                try {
+                    $errorResponse = \Zend\Json\Json::decode($response->getBody(), \Zend\Json\Json::TYPE_ARRAY);
+                    $auditData = new AuditData($errorResponse["auditData"]);
+                    $message = $errorResponse["error"]["code"] . ' ' . $errorResponse["error"]["message"];
+                } catch (\Exception $e) {
+                    throw new HotelSDKException($response->getReasonPhrase() . ': ' . $response->getBody());
+                }
+            }
+            throw new HotelSDKException($response->getReasonPhrase() . ': ' . $message, $auditData);
         }
 
-        return \Zend\Json\Json::decode(mb_convert_encoding($response->getBody(),'UTF-8'), \Zend\Json\Json::TYPE_ARRAY);
+        return \Zend\Json\Json::decode(mb_convert_encoding($response->getBody(), 'UTF-8'), \Zend\Json\Json::TYPE_ARRAY);
     }
 
     /**
@@ -205,6 +209,4 @@ class HotelApiClient
     {
         return $this->lastResponse;
     }
-
-
 }
